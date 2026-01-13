@@ -1,0 +1,1 @@
+python merge_zip.py "D:\course\C++\理论9" ../collected_zips2

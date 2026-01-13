@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自动批改作业系统</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="url"],
+        input[type="password"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn-group button {
+            width: auto;
+            flex: 1;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .section-title {
+            font-size: 1.2em;
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .progress-log {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>自动批改作业系统</h1>
+        
+        <div class="section">
+            <h2 class="section-title">自动批改作业</h2>
+            <div class="form-group">
+                <label for="searchDir">包含学生作业ZIP文件的目录:</label>
+                <input type="text" id="searchDir" placeholder="例如: D:\course\C++\实验9 (可以包含子文件夹)">
+            </div>
+            
+            <div class="form-group">
+                <label for="assignmentType">作业类型:</label>
+                <select id="assignmentType">
+                    <option value="实验">实验</option>
+                    <option value="理论">理论</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="requirements">作业要求:</label>
+                <textarea id="requirements" placeholder="请输入作业的具体要求..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="numQuestions">题目数量:</label>
+                <input type="number" id="numQuestions" value="1" min="1">
+            </div>
+            
+            <div class="form-group">
+                <label for="baseUrl">LLM API Base URL:</label>
+                <input type="url" id="baseUrl" value="https://dashscope.aliyuncs.com/compatible-mode/v1">
+            </div>
+            
+            <div class="form-group">
+                <label for="modelName">模型名称:</label>
+                <input type="text" id="modelName" value="qwen3-235b-a22b">
+            </div>
+            
+            <div class="form-group">
+                <label for="apiKey">API Key:</label>
+                <input type="password" id="apiKey" placeholder="请输入您的API Key">
+            </div>
+            
+            <button id="processBtn" onclick="processHomework()">开始批改作业</button>
+        </div>
+        
+        <div id="resultSection" class="result">
+            <h3>处理进度</h3>
+            <div id="progressLog" class="progress-log"></div>
+            <div id="finalResult" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        async function processHomework() {
+            const searchDir = document.getElementById('searchDir').value.trim().replace(/"/g, '');
+            const assignmentType = document.getElementById('assignmentType').value;
+            const requirements = document.getElementById('requirements').value.trim();
+            const numQuestions = document.getElementById('numQuestions').value;
+            const baseUrl = document.getElementById('baseUrl').value.trim();
+            const modelName = document.getElementById('modelName').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!searchDir) {
+                alert('请输入包含学生作业ZIP文件的目录');
+                return;
+            }
+            
+            if (!requirements) {
+                alert('请输入作业要求');
+                return;
+            }
+            
+            if (!apiKey) {
+                alert('请输入API Key');
+                return;
+            }
+            
+            // 显示进度区域
+            const resultSection = document.getElementById('resultSection');
+            resultSection.style.display = 'block';
+            resultSection.className = 'result';
+            document.getElementById('progressLog').innerHTML = '';
+            document.getElementById('finalResult').innerHTML = '';
+            
+            // 禁用按钮防止重复点击
+            const processBtn = document.getElementById('processBtn');
+            processBtn.disabled = true;
+            processBtn.textContent = '正在批改中...';
+            
+            try {
+                // 转换为URL编码格式
+                const params = new URLSearchParams();
+                params.append('searchDir', searchDir);
+                params.append('assignment_type', assignmentType);
+                params.append('requirements', requirements);
+                params.append('num_questions', numQuestions);
+                params.append('base_url', baseUrl);
+                params.append('model_name', modelName);
+                params.append('api_key', apiKey);
+                
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: params
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        break;
+                    }
+                    
+                    // 解码接收到的数据
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 分割缓冲区中的JSON行
+                    const lines = buffer.split('\n');
+                    
+                    // 保留最后一行（可能不完整）
+                    buffer = lines.pop() || '';
+                    
+                    // 处理每一行
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        
+                        try {
+                            const data = JSON.parse(line);
+                            
+                            // 添加日志条目到进度区域
+                            addLogEntry(data.type, data.message);
+                            
+                            // 检查是否是最终结果
+                            if (data.type === 'success') {
+                                showFinalResult(data);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing JSON:', e);
+                            console.log('Problematic line:', line);
+                        }
+                    }
+                }
+                
+                // 处理缓冲区中的最后一行（如果有的话）
+                if (buffer.trim() !== '') {
+                    try {
+                        const data = JSON.parse(buffer);
+                        addLogEntry(data.type, data.message);
+                        
+                        if (data.type === 'success') {
+                            showFinalResult(data);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing final JSON:', e);
+                    }
+                }
+                
+            } catch (error) {
+                addLogEntry('error', `请求失败: ${error.message}`);
+            } finally {
+                // 重新启用按钮
+                processBtn.disabled = false;
+                processBtn.textContent = '开始批改作业';
+            }
+        }
+        
+        function addLogEntry(type, message) {
+            const logElement = document.getElementById('progressLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `${new Date().toLocaleString()}: ${message}`;
+            logElement.appendChild(entry);
+            
+            // 滚动到底部
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function showFinalResult(data) {
+            const finalResultDiv = document.getElementById('finalResult');
+            finalResultDiv.innerHTML = `
+                <div class="success">
+                    <h3>✅ ${data.message}</h3>
+                    <p>处理结果统计：</p>
+                    <ul>
+                        <li>处理的学生数量: ${data.results_count}</li>
+                        <li>结果保存文件: <strong>${data.output_file}</strong></li>
+                    </ul>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
